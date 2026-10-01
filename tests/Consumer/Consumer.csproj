@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <OfficeCliPackageVersion Condition="'$(OfficeCliPackageVersion)' == ''">999.0.0</OfficeCliPackageVersion>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="OfficeCLI" Version="[$(OfficeCliPackageVersion)]" />
+    <!-- Exercise a consumer override of an upstream transitive dependency. -->
+    <PackageReference Include="System.IO.Packaging" Version="10.0.11" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,81 @@
+<Project>
+  <PropertyGroup>
+    <_OfficeCliIsExecutable Condition="'$(OutputType)' == 'Exe' Or '$(OutputType)' == 'WinExe'">true</_OfficeCliIsExecutable>
+    <_OfficeCliRid>$(RuntimeIdentifier)</_OfficeCliRid>
+    <_OfficeCliRid Condition="'$(_OfficeCliRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</_OfficeCliRid>
+    <_OfficeCliHostName>officecli</_OfficeCliHostName>
+    <_OfficeCliHostName Condition="$([System.String]::Copy('$(_OfficeCliRid)').StartsWith('win-'))">officecli.exe</_OfficeCliHostName>
+    <_OfficeCliHostPath>$(MSBuildThisFileDirectory)hosts/$(_OfficeCliRid)/$(_OfficeCliHostName)</_OfficeCliHostPath>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_OfficeCliIsExecutable)' == 'true'">
+    <None Include="$(_OfficeCliHostPath)" Link="$(_OfficeCliHostName)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" PublishFolderType="Assembly" />
+    <!-- The CLI runs in a separate process, so the consumer has no static calls to its entry point. -->
+    <TrimmerRootAssembly Include="officecli" />
+  </ItemGroup>
+
+  <Target Name="ValidateOfficeCliConsumer" BeforeTargets="PrepareForBuild;PrepareForPublish"
+          Condition="'$(_OfficeCliIsExecutable)' == 'true' And '$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(_OfficeCliHostPath)')" Text="OfficeCLI has no apphost for RID '$(_OfficeCliRid)'. Supported RIDs: win-x64, linux-x64, linux-arm64, osx-x64, osx-arm64." />
+    <Error Condition="'$(PublishSingleFile)' == 'true' Or '$(PublishAot)' == 'true'" Text="OfficeCLI requires a consumer with separate managed assemblies and runtime files. Single-file and NativeAOT consumers are not supported." />
+    <Error Condition="'$(GenerateDependencyFile)' != 'true' Or '$(GenerateRuntimeConfigurationFiles)' != 'true'" Text="OfficeCLI requires GenerateDependencyFile and GenerateRuntimeConfigurationFiles to be enabled in the executable consumer." />
+  </Target>
+
+  <!--
+    Use the consumer's SDK-generated graph, including the OfficeCLI package, rather than a
+    producer-time deps file. The renamed manifest intentionally retains the consumer's root
+    library; the apphost still loads officecli.dll. This keeps dependency overrides, runtime
+    packs and linker pruning aligned with the actual shared output. Both executables inherit
+    the consumer's runtime configuration and must remain in the same output directory.
+  -->
+  <Target Name="CopyOfficeCliBuildConfiguration" BeforeTargets="CopyFilesToOutputDirectory;_CreateAppBundle"
+          DependsOnTargets="GenerateBuildDependencyFile;GenerateBuildRuntimeConfigurationFiles"
+          Condition="'$(_OfficeCliIsExecutable)' == 'true' And '$(DesignTimeBuild)' != 'true'">
+    <!-- Bundle consumers may use these paths; ComputeFilesToPublish replaces them with final sidecars. -->
+    <PropertyGroup>
+      <OfficeCliDepsFile>$(TargetDir)officecli.deps.json</OfficeCliDepsFile>
+      <OfficeCliRuntimeConfig>$(TargetDir)officecli.runtimeconfig.json</OfficeCliRuntimeConfig>
+    </PropertyGroup>
+    <!-- macOS can assemble the Bundle before the normal output-copy target. -->
+    <Copy SourceFiles="$(_OfficeCliHostPath)" DestinationFiles="$(TargetDir)$(_OfficeCliHostName)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(ProjectDepsFilePath)" DestinationFiles="$(TargetDir)officecli.deps.json" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(ProjectRuntimeConfigFilePath)" DestinationFiles="$(TargetDir)officecli.runtimeconfig.json" SkipUnchangedFiles="true" />
+    <Exec Command="chmod +x &quot;$(TargetDir)$(_OfficeCliHostName)&quot;" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+    <ItemGroup>
+      <FileWrites Include="$(TargetDir)$(_OfficeCliHostName);$(TargetDir)officecli.deps.json;$(TargetDir)officecli.runtimeconfig.json" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="MakeOfficeCliAppHostExecutable" AfterTargets="CopyFilesToOutputDirectory"
+          Condition="'$(_OfficeCliIsExecutable)' == 'true' And '$(DesignTimeBuild)' != 'true' And !$([MSBuild]::IsOSPlatform('Windows'))">
+    <Exec Command="chmod +x &quot;$(TargetDir)$(_OfficeCliHostName)&quot;" />
+  </Target>
+
+  <!-- ComputeFilesToPublish has already run ILLink and generated the final publish deps file. -->
+  <Target Name="IncludeOfficeCliPublishConfiguration" AfterTargets="ComputeFilesToPublish" BeforeTargets="_ComputeResolvedFilesToPublishTypes"
+          Condition="'$(_OfficeCliIsExecutable)' == 'true' And '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_OfficeCliPublishConfigDir>$(IntermediateOutputPath)officecli/publish/</_OfficeCliPublishConfigDir>
+      <OfficeCliDepsFile>$(_OfficeCliPublishConfigDir)officecli.deps.json</OfficeCliDepsFile>
+      <OfficeCliRuntimeConfig>$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json</OfficeCliRuntimeConfig>
+    </PropertyGroup>
+    <ItemGroup>
+      <_OfficeCliPublishDeps Include="@(ResolvedFileToPublish)" Condition="'%(RelativePath)' == '$(ProjectDepsFileName)'" />
+      <_OfficeCliPublishRuntimeConfig Include="@(ResolvedFileToPublish)" Condition="'%(RelativePath)' == '$(ProjectRuntimeConfigFileName)'" />
+    </ItemGroup>
+    <Error Condition="'@(_OfficeCliPublishDeps)' == '' Or '@(_OfficeCliPublishRuntimeConfig)' == ''" Text="The executable consumer's publish dependency and runtime configuration files are required by OfficeCLI." />
+    <MakeDir Directories="$(_OfficeCliPublishConfigDir)" />
+    <Copy SourceFiles="@(_OfficeCliPublishDeps)" DestinationFiles="$(_OfficeCliPublishConfigDir)officecli.deps.json" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(_OfficeCliPublishRuntimeConfig)" DestinationFiles="$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="$(_OfficeCliPublishConfigDir)officecli.deps.json" RelativePath="officecli.deps.json" CopyToPublishDirectory="PreserveNewest" PublishFolderType="Assembly" />
+      <ResolvedFileToPublish Include="$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json" RelativePath="officecli.runtimeconfig.json" CopyToPublishDirectory="PreserveNewest" PublishFolderType="Assembly" />
+      <FileWrites Include="$(_OfficeCliPublishConfigDir)officecli.deps.json;$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="MakePublishedOfficeCliAppHostExecutable" AfterTargets="Publish"
+          Condition="'$(_OfficeCliIsExecutable)' == 'true' And '$(DesignTimeBuild)' != 'true' And !$([MSBuild]::IsOSPlatform('Windows')) And Exists('$(PublishDir)$(_OfficeCliHostName)')">
+    <Exec Command="chmod +x &quot;$(PublishDir)$(_OfficeCliHostName)&quot;" />
+  </Target>
+</Project>

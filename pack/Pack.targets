@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeOfficeCliPackageFiles</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+  <Target Name="IncludeOfficeCliPackageFiles">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(OfficeCliPackagingRoot)/pack/OfficeCLI.targets" PackagePath="buildTransitive/OfficeCLI.targets" />
+      <TfmSpecificPackageFile Include="$(OfficeCliPackagingRoot)/artifacts/hosts/**/officecli;$(OfficeCliPackagingRoot)/artifacts/hosts/**/officecli.exe">
+        <PackagePath>buildTransitive/hosts/%(RecursiveDir)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(OfficeCliPackagingRoot)/README.md" PackagePath="/" />
+      <TfmSpecificPackageFile Include="$(OfficeCliPackagingRoot)/3rd/OfficeCLI/LICENSE" PackagePath="/" />
+      <TfmSpecificPackageFile Include="$(OfficeCliPackagingRoot)/3rd/OfficeCLI/THIRD-PARTY-NOTICES.txt" PackagePath="/" />
+    </ItemGroup>
+  </Target>
+</Project>

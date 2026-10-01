@@ -1,0 +1,3 @@
+[submodule "3rd/OfficeCLI"]
+	path = 3rd/OfficeCLI
+	url = https://github.com/iOfficeAI/OfficeCLI

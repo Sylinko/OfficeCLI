@@ -1,0 +1,124 @@
+name: Publish NuGet
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release-tag: ${{ steps.version.outputs.release-tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: Resolve package version
+        id: version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $createdAt = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID" --jq .created_at
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read the original workflow run date.' }
+          $date = [DateTimeOffset]::Parse($createdAt).UtcDateTime.ToString('yyyyMMdd')
+          $version = "999.$date.$env:GITHUB_RUN_NUMBER"
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "release-tag=nuget/OfficeCLI/$version" >> $env:GITHUB_OUTPUT
+      - name: Pack upstream and platform apphosts
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: ./scripts/pack.ps1 -Version $env:PACKAGE_VERSION
+      - uses: actions/upload-artifact@v6
+        with:
+          name: officecli-packages
+          path: artifacts/packages/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: officecli-pack-provenance
+          path: |
+            artifacts/source.json
+            artifacts/logs/*
+
+  smoke:
+    needs: pack
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            runner: windows-latest
+          - rid: linux-x64
+            runner: ubuntu-24.04
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+          - rid: osx-x64
+            runner: macos-15-intel
+          - rid: osx-arm64
+            runner: macos-26
+    runs-on: ${{ matrix.runner }}
+    steps:
+      # Consumers intentionally do not check out the upstream submodule.
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - uses: actions/download-artifact@v8
+        with:
+          name: officecli-packages
+          path: artifacts/packages
+      - name: Test package consumption and shared runtime
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
+          PACKAGE_RID: ${{ matrix.rid }}
+        run: ./scripts/smoke.ps1 -Version $env:PACKAGE_VERSION -RuntimeIdentifier $env:PACKAGE_RID
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: officecli-smoke-${{ matrix.rid }}
+          path: artifacts/smoke/${{ matrix.rid }}/*.log
+
+  publish:
+    needs: [pack, smoke]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: officecli-packages
+          path: artifacts/packages
+      - uses: actions/download-artifact@v8
+        with:
+          name: officecli-pack-provenance
+          path: artifacts/provenance
+      - name: Publish packages and create feed PR
+        uses: Sylinko/nuget-feed@v1
+        with:
+          token: ${{ secrets.SYLINKO_NUGET_FEED_TOKEN }}
+          release-tag: ${{ needs.pack.outputs.release-tag }}
+          artifacts-directory: artifacts/packages
+      - name: Attach upstream provenance to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.pack.outputs.release-tag }}
+        run: |
+          gh release upload $env:RELEASE_TAG artifacts/provenance/source.json --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to attach upstream provenance.' }
