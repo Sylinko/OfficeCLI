@@ -86,12 +86,28 @@ then runs RID-less framework-dependent build output and a trimmed self-contained
 publish. It creates Word, Excel and PowerPoint documents and edits/reads a Word
 document through upstream's resident child process.
 
-The `osx-arm64` CI job also installs the macOS workload and publishes a
-`net10.0-macos` consumer as an Apple `.app`, then runs the same CLI smoke from
-`Contents/MonoBundle`. This covers Apple's runtime configuration conversion and
-bundle layout, which a regular `net10.0` publish with an `osx` RID does not exercise.
-To run it locally on a Mac with the matching Xcode and macOS workload, add
-`-AppleBundle` to the smoke command.
+The `osx-arm64` CI job pins workload set `10.0.401` with Xcode `26.6` and publishes a
+trimmed, self-contained `net10.0-macos` consumer as an Apple `.app`. The fixture
+uses hardened runtime and the same JIT entitlements and signing order as Everywhere:
+native libraries, the OfficeCLI apphost, then the main app. CI uses ad-hoc signing;
+Developer ID signing, notarization and installer packaging remain release responsibilities.
+
+The smoke copies the signed app to a fresh directory, verifies its signature, starts
+its main executable, and runs all document/resident tests from `Contents/MonoBundle`.
+It also checks that OfficeCLI uses the final trimmed dependency manifest and the
+consumer's runtime configuration, with one shared copy of each tested dependency.
+This exercises Apple's runtime configuration conversion and app layout, which a
+regular `net10.0` publish with an `osx` RID does not cover.
+
+To run it locally with Xcode 26.6, first install the matching workload:
+
+```sh
+dotnet workload install macos --version 10.0.401
+```
+
+Then add `-AppleBundle` to the smoke command. Pinning the .NET SDK alone does not
+pin workload manifests. Update the workload set and Xcode together when Everywhere
+changes its Apple toolchain. The other four RID jobs retain the ordinary .NET smoke.
 
 ## Publication and updates
 

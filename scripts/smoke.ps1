@@ -31,7 +31,7 @@ function Invoke-Dotnet([string] $Name, [string[]] $Arguments) {
     Write-Host "Completed $Name; log: $log"
 }
 
-function Invoke-OfficeCli([string] $Executable, [string[]] $Arguments) {
+function Invoke-SmokeProcess([string] $Executable, [string[]] $Arguments) {
     $start = [System.Diagnostics.ProcessStartInfo]::new($Executable)
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
@@ -47,11 +47,11 @@ function Invoke-OfficeCli([string] $Executable, [string[]] $Arguments) {
         $stderr = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit(30000)) {
             $process.Kill($true)
-            throw "OfficeCLI timed out: $Arguments"
+            throw "Process timed out: $Arguments"
         }
-        if (-not [System.Threading.Tasks.Task]::WaitAll(@($stdout, $stderr), 10000)) { throw 'OfficeCLI output streams did not close.' }
+        if (-not [System.Threading.Tasks.Task]::WaitAll(@($stdout, $stderr), 10000)) { throw 'Process output streams did not close.' }
         $output = $stdout.Result + $stderr.Result
-        if ($process.ExitCode -ne 0) { throw "OfficeCLI exited $($process.ExitCode): $Arguments`n$output" }
+        if ($process.ExitCode -ne 0) { throw "Process exited $($process.ExitCode): $Arguments`n$output" }
         return $output
     }
     finally { $process.Dispose() }
@@ -78,22 +78,22 @@ function Test-Output([string] $Directory, [bool] $IsSelfContained, [string] $Ref
         if ($copies.Count -ne 1) { throw "Expected one shared copy of $name, found $($copies.Count)." }
     }
 
-    Invoke-OfficeCli $executable @('--version') | Write-Host
+    Invoke-SmokeProcess $executable @('--version') | Write-Host
     foreach ($extension in @('docx', 'xlsx', 'pptx')) {
         $document = Join-Path $work "smoke-$([guid]::NewGuid().ToString('N')).$extension"
         try {
-            Invoke-OfficeCli $executable @('create', $document) | Out-Null
+            Invoke-SmokeProcess $executable @('create', $document) | Out-Null
             if ($extension -eq 'docx') {
-                Invoke-OfficeCli $executable @('add', $document, '/body', '--type', 'paragraph', '--prop', 'text=NuGet packaging smoke') | Out-Null
-                $output = Invoke-OfficeCli $executable @('get', $document, '/body/p[1]')
+                Invoke-SmokeProcess $executable @('add', $document, '/body', '--type', 'paragraph', '--prop', 'text=NuGet packaging smoke') | Out-Null
+                $output = Invoke-SmokeProcess $executable @('get', $document, '/body/p[1]')
                 if ($output -notmatch 'NuGet packaging smoke') { throw 'Word resident edit/read failed.' }
             }
-            Invoke-OfficeCli $executable @('close', $document) | Out-Null
-            Invoke-OfficeCli $executable @('validate', $document) | Out-Null
+            Invoke-SmokeProcess $executable @('close', $document) | Out-Null
+            Invoke-SmokeProcess $executable @('validate', $document) | Out-Null
         }
         finally {
             # Close any resident even when an earlier assertion fails.
-            try { Invoke-OfficeCli $executable @('close', $document) | Out-Null } catch { Write-Warning $_ }
+            try { Invoke-SmokeProcess $executable @('close', $document) | Out-Null } catch { Write-Warning $_ }
             if (Test-Path -LiteralPath $document) { Remove-Item -LiteralPath $document }
         }
     }
@@ -118,7 +118,16 @@ if ($AppleBundle) {
     $appleCommon = @($appleProject, '-c', 'Release', "-p:OfficeCliPackageVersion=$Version", "-p:RestoreConfigFile=$config", "-p:RestorePackagesPath=$packageCache", '-p:NuGetAudit=false', '--nologo')
     Invoke-Dotnet 'publish-apple' (@('publish') + $appleCommon + @('-r', $RuntimeIdentifier, '-o', $applePublish))
     $bundleDirectory = (Get-Content (Join-Path $applePublish 'bundle-path.txt') -Raw).Trim()
-    Test-Output (Join-Path $bundleDirectory 'Contents/MonoBundle') $true (Join-Path $applePublish 'smoke-reference')
+    # Run the complete signed app after relocation, as an installed consumer would.
+    $installedBundle = Join-Path $work "installed-$([guid]::NewGuid().ToString('N'))/Consumer.app"
+    New-Item -ItemType Directory -Force (Split-Path $installedBundle -Parent) | Out-Null
+    & ditto $bundleDirectory $installedBundle
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to copy the published app bundle.' }
+    & codesign --verify --deep --strict --verbose=2 $installedBundle
+    if ($LASTEXITCODE -ne 0) { throw 'The relocated app bundle signature is invalid.' }
+    $consumerOutput = Invoke-SmokeProcess (Join-Path $installedBundle 'Contents/MacOS/Consumer') @()
+    if ($consumerOutput -notmatch 'OfficeCLI packaging consumer') { throw 'The bundled consumer did not start correctly.' }
+    Test-Output (Join-Path $installedBundle 'Contents/MonoBundle') $true (Join-Path $applePublish 'smoke-reference')
 }
 
 Write-Host "Smoke passed for OfficeCLI $Version / $RuntimeIdentifier"

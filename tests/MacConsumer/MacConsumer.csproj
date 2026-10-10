@@ -7,6 +7,10 @@
     <SelfContained>true</SelfContained>
     <UseAppHost>true</UseAppHost>
     <CreateAppBundle>true</CreateAppBundle>
+    <CreatePackage>false</CreatePackage>
+    <UseHardenedRuntime>true</UseHardenedRuntime>
+    <ApplicationManifest>Info.plist</ApplicationManifest>
+    <CodesignEntitlements>Entitlements.plist</CodesignEntitlements>
     <GenerateDependencyFile>true</GenerateDependencyFile>
     <PublishTrimmed>true</PublishTrimmed>
     <EnableCodeSigning>false</EnableCodeSigning>
@@ -26,7 +30,16 @@
     <Exec Command="chmod +x &quot;$(AppBundleDir)/Contents/MonoBundle/officecli&quot;" />
   </Target>
 
-  <Target Name="WriteSmokeReferences" AfterTargets="Publish">
+  <!-- Match Everywhere's signing order, using an ad-hoc identity without release secrets. -->
+  <Target Name="SignSmokeBundle" AfterTargets="Publish">
+    <Exec Command="xattr -cr &quot;$(AppBundleDir)&quot;" />
+    <Exec Command="find &quot;$(AppBundleDir)/Contents/MonoBundle&quot; \( -name &quot;*.dylib&quot; -o -name &quot;*.so&quot; -o -name &quot;createdump&quot; \) -exec codesign --force --sign - --timestamp=none --options runtime &quot;{}&quot; \;" />
+    <Exec Command="codesign --force --sign - --timestamp=none --options runtime --entitlements &quot;$(CodesignEntitlements)&quot; &quot;$(AppBundleDir)/Contents/MonoBundle/officecli&quot;" />
+    <Exec Command="codesign --force --sign - --timestamp=none --options runtime --entitlements &quot;$(CodesignEntitlements)&quot; &quot;$(AppBundleDir)&quot;" />
+    <Exec Command="codesign --verify --deep --strict --verbose=2 &quot;$(AppBundleDir)&quot;" />
+  </Target>
+
+  <Target Name="WriteSmokeReferences" AfterTargets="Publish" DependsOnTargets="SignSmokeBundle">
     <!-- Compare against the SDK's final trimmed graph, independently of the CLI copies. -->
     <Copy SourceFiles="$(IntermediateDepsFilePath)" DestinationFiles="$(PublishDir)smoke-reference/Consumer.deps.json" />
     <Copy SourceFiles="$(ProjectRuntimeConfigFilePath)" DestinationFiles="$(PublishDir)smoke-reference/Consumer.runtimeconfig.json" />

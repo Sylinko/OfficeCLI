@@ -87,7 +87,7 @@ jobs:
           xcode-version: '26.6'
       - name: Install Apple workload for bundle smoke
         if: matrix.rid == 'osx-arm64'
-        run: dotnet workload install macos
+        run: dotnet workload install macos --version 10.0.401
       - name: Test package consumption and shared runtime
         shell: pwsh
         env:
