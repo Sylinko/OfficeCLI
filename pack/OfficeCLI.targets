@@ -60,13 +60,16 @@
       <OfficeCliRuntimeConfig>$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json</OfficeCliRuntimeConfig>
     </PropertyGroup>
     <ItemGroup>
-      <_OfficeCliPublishDeps Include="@(ResolvedFileToPublish)" Condition="'%(RelativePath)' == '$(ProjectDepsFileName)'" />
-      <_OfficeCliPublishRuntimeConfig Include="@(ResolvedFileToPublish)" Condition="'%(RelativePath)' == '$(ProjectRuntimeConfigFileName)'" />
+      <!-- Apple bundle targets may relocate publish items, so match the source filename. -->
+      <_OfficeCliPublishDeps Include="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == '$(ProjectDepsFileName)'" />
     </ItemGroup>
-    <Error Condition="'@(_OfficeCliPublishDeps)' == '' Or '@(_OfficeCliPublishRuntimeConfig)' == ''" Text="The executable consumer's publish dependency and runtime configuration files are required by OfficeCLI." />
+    <Error Condition="'@(_OfficeCliPublishDeps->Count())' != '1'" Text="OfficeCLI requires exactly one final publish dependency file named '$(ProjectDepsFileName)'; found @(_OfficeCliPublishDeps->Count())." />
+    <!-- The Apple SDK removes this JSON from ResolvedFileToPublish and ships runtimeconfig.bin.
+         The original SDK-generated JSON still exists and is required by the ordinary CLI apphost. -->
+    <Error Condition="'$(ProjectRuntimeConfigFilePath)' == '' Or !Exists('$(ProjectRuntimeConfigFilePath)')" Text="OfficeCLI requires the consumer's SDK-generated runtime configuration: '$(ProjectRuntimeConfigFilePath)'." />
     <MakeDir Directories="$(_OfficeCliPublishConfigDir)" />
     <Copy SourceFiles="@(_OfficeCliPublishDeps)" DestinationFiles="$(_OfficeCliPublishConfigDir)officecli.deps.json" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(_OfficeCliPublishRuntimeConfig)" DestinationFiles="$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(ProjectRuntimeConfigFilePath)" DestinationFiles="$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json" SkipUnchangedFiles="true" />
     <ItemGroup>
       <ResolvedFileToPublish Include="$(_OfficeCliPublishConfigDir)officecli.deps.json" RelativePath="officecli.deps.json" CopyToPublishDirectory="PreserveNewest" PublishFolderType="Assembly" />
       <ResolvedFileToPublish Include="$(_OfficeCliPublishConfigDir)officecli.runtimeconfig.json" RelativePath="officecli.runtimeconfig.json" CopyToPublishDirectory="PreserveNewest" PublishFolderType="Assembly" />

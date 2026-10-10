@@ -64,6 +64,8 @@ The Apple SDK disables dependency manifest generation by default, so macOS
 consumers must explicitly enable `GenerateDependencyFile`. For custom Bundle
 copy targets, use `OfficeCliDepsFile` and `OfficeCliRuntimeConfig`: the package
 sets these to the current build files or the final post-trimming publish files.
+The runtime JSON comes from `ProjectRuntimeConfigFilePath`: the Apple SDK keeps
+that generated file but removes it from the publish list when using `runtimeconfig.bin`.
 The package itself does not provide Developer ID signing or notarization.
 
 ## Build and verify locally
@@ -83,6 +85,13 @@ The smoke restores into a separate cache, exercises a dependency version overrid
 then runs RID-less framework-dependent build output and a trimmed self-contained
 publish. It creates Word, Excel and PowerPoint documents and edits/reads a Word
 document through upstream's resident child process.
+
+The `osx-arm64` CI job also installs the macOS workload and publishes a
+`net10.0-macos` consumer as an Apple `.app`, then runs the same CLI smoke from
+`Contents/MonoBundle`. This covers Apple's runtime configuration conversion and
+bundle layout, which a regular `net10.0` publish with an `osx` RID does not exercise.
+To run it locally on a Mac with the matching Xcode and macOS workload, add
+`-AppleBundle` to the smoke command.
 
 ## Publication and updates
 

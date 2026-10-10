@@ -80,12 +80,20 @@ jobs:
         with:
           name: officecli-packages
           path: artifacts/packages
+      - name: Select Xcode for Apple bundle smoke
+        if: matrix.rid == 'osx-arm64'
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.6'
+      - name: Install Apple workload for bundle smoke
+        if: matrix.rid == 'osx-arm64'
+        run: dotnet workload install macos
       - name: Test package consumption and shared runtime
         shell: pwsh
         env:
           PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
           PACKAGE_RID: ${{ matrix.rid }}
-        run: ./scripts/smoke.ps1 -Version $env:PACKAGE_VERSION -RuntimeIdentifier $env:PACKAGE_RID
+        run: ./scripts/smoke.ps1 -Version $env:PACKAGE_VERSION -RuntimeIdentifier $env:PACKAGE_RID -AppleBundle:($env:PACKAGE_RID -eq 'osx-arm64')
       - uses: actions/upload-artifact@v6
         if: always()
         with:

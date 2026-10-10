@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Consumer</AssemblyName>
+    <TargetFramework>net10.0-macos</TargetFramework>
+    <SupportedOSPlatformVersion>12.0</SupportedOSPlatformVersion>
+    <SelfContained>true</SelfContained>
+    <UseAppHost>true</UseAppHost>
+    <CreateAppBundle>true</CreateAppBundle>
+    <GenerateDependencyFile>true</GenerateDependencyFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <EnableCodeSigning>false</EnableCodeSigning>
+    <EnablePackageSigning>false</EnablePackageSigning>
+    <OfficeCliPackageVersion Condition="'$(OfficeCliPackageVersion)' == ''">999.0.0</OfficeCliPackageVersion>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Consumer/Program.cs" Link="Program.cs" />
+    <PackageReference Include="OfficeCLI" Version="[$(OfficeCliPackageVersion)]" />
+    <PackageReference Include="System.IO.Packaging" Version="10.0.11" />
+  </ItemGroup>
+
+  <!-- Exercise the same final-sidecar integration used by Everywhere's Apple bundle. -->
+  <Target Name="CopyOfficeCliToBundle" AfterTargets="_CreateAppBundle">
+    <Copy SourceFiles="$(TargetDir)officecli;$(OfficeCliDepsFile);$(OfficeCliRuntimeConfig)" DestinationFolder="$(AppBundleDir)/Contents/MonoBundle" />
+    <Exec Command="chmod +x &quot;$(AppBundleDir)/Contents/MonoBundle/officecli&quot;" />
+  </Target>
+
+  <Target Name="WriteSmokeReferences" AfterTargets="Publish">
+    <!-- Compare against the SDK's final trimmed graph, independently of the CLI copies. -->
+    <Copy SourceFiles="$(IntermediateDepsFilePath)" DestinationFiles="$(PublishDir)smoke-reference/Consumer.deps.json" />
+    <Copy SourceFiles="$(ProjectRuntimeConfigFilePath)" DestinationFiles="$(PublishDir)smoke-reference/Consumer.runtimeconfig.json" />
+    <ConvertToAbsolutePath Paths="$(AppBundleDir)">
+      <Output TaskParameter="AbsolutePaths" PropertyName="_SmokeBundleDirectory" />
+    </ConvertToAbsolutePath>
+    <WriteLinesToFile File="$(PublishDir)bundle-path.txt" Lines="$(_SmokeBundleDirectory)" Overwrite="true" />
+  </Target>
+</Project>

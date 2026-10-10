@@ -1,6 +1,7 @@
 param(
     [string] $Version = '999.0.0',
-    [Parameter(Mandatory)] [string] $RuntimeIdentifier
+    [Parameter(Mandatory)] [string] $RuntimeIdentifier,
+    [switch] $AppleBundle
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,11 +57,11 @@ function Invoke-OfficeCli([string] $Executable, [string[]] $Arguments) {
     finally { $process.Dispose() }
 }
 
-function Test-Output([string] $Directory, [bool] $IsSelfContained) {
+function Test-Output([string] $Directory, [bool] $IsSelfContained, [string] $ReferenceDirectory = $Directory) {
     $hostName = if ($RuntimeIdentifier.StartsWith('win-')) { 'officecli.exe' } else { 'officecli' }
     $executable = Join-Path $Directory $hostName
     foreach ($suffix in @('deps.json', 'runtimeconfig.json')) {
-        $consumerHash = (Get-FileHash (Join-Path $Directory "Consumer.$suffix")).Hash
+        $consumerHash = (Get-FileHash (Join-Path $ReferenceDirectory "Consumer.$suffix")).Hash
         $officeHash = (Get-FileHash (Join-Path $Directory "officecli.$suffix")).Hash
         if ($consumerHash -ne $officeHash) { throw "OfficeCLI $suffix does not match the final consumer output." }
     }
@@ -109,4 +110,15 @@ Test-Output $buildDir $false
 $publish = Join-Path $work 'publish'
 Invoke-Dotnet 'publish' (@('publish') + $common + @('-r', $RuntimeIdentifier, '--self-contained', 'true', '-p:PublishTrimmed=true', '-o', $publish))
 Test-Output $publish $true
+
+if ($AppleBundle) {
+    if (-not $IsMacOS -or -not $RuntimeIdentifier.StartsWith('osx-')) { throw 'The Apple bundle smoke requires a macOS runner and an osx RID.' }
+    $appleProject = Join-Path $root 'tests/MacConsumer/MacConsumer.csproj'
+    $applePublish = Join-Path $work 'apple-publish'
+    $appleCommon = @($appleProject, '-c', 'Release', "-p:OfficeCliPackageVersion=$Version", "-p:RestoreConfigFile=$config", "-p:RestorePackagesPath=$packageCache", '-p:NuGetAudit=false', '--nologo')
+    Invoke-Dotnet 'publish-apple' (@('publish') + $appleCommon + @('-r', $RuntimeIdentifier, '-o', $applePublish))
+    $bundleDirectory = (Get-Content (Join-Path $applePublish 'bundle-path.txt') -Raw).Trim()
+    Test-Output (Join-Path $bundleDirectory 'Contents/MonoBundle') $true (Join-Path $applePublish 'smoke-reference')
+}
+
 Write-Host "Smoke passed for OfficeCLI $Version / $RuntimeIdentifier"
