@@ -12,15 +12,14 @@
     <ApplicationManifest>Info.plist</ApplicationManifest>
     <CodesignEntitlements>Entitlements.plist</CodesignEntitlements>
     <GenerateDependencyFile>true</GenerateDependencyFile>
-    <!-- Apple SDK owns PublishTrimmed; exercise full trimming through its LinkMode contract. -->
-    <LinkMode>Full</LinkMode>
+    <!-- Match Everywhere's untrimmed Apple bundle; the Apple SDK owns PublishTrimmed. -->
+    <LinkMode>None</LinkMode>
     <EnableCodeSigning>false</EnableCodeSigning>
     <EnablePackageSigning>false</EnablePackageSigning>
     <OfficeCliPackageVersion Condition="'$(OfficeCliPackageVersion)' == ''">999.0.0</OfficeCliPackageVersion>
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Consumer/Program.cs" Link="Program.cs" />
     <PackageReference Include="OfficeCLI" Version="[$(OfficeCliPackageVersion)]" />
     <PackageReference Include="System.IO.Packaging" Version="10.0.11" />
   </ItemGroup>
@@ -41,7 +40,7 @@
   </Target>
 
   <Target Name="WriteSmokeReferences" AfterTargets="Publish" DependsOnTargets="SignSmokeBundle">
-    <!-- Compare against the SDK's final trimmed graph, independently of the CLI copies. -->
+    <!-- Compare against the SDK's final graph, independently of the CLI copies. -->
     <Copy SourceFiles="$(IntermediateDepsFilePath)" DestinationFiles="$(PublishDir)smoke-reference/Consumer.deps.json" />
     <Copy SourceFiles="$(ProjectRuntimeConfigFilePath)" DestinationFiles="$(PublishDir)smoke-reference/Consumer.runtimeconfig.json" />
     <ConvertToAbsolutePath Paths="$(AppBundleDir)">

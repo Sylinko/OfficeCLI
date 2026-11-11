@@ -123,11 +123,13 @@ if ($AppleBundle) {
     New-Item -ItemType Directory -Force (Split-Path $installedBundle -Parent) | Out-Null
     & ditto $bundleDirectory $installedBundle
     if ($LASTEXITCODE -ne 0) { throw 'Failed to copy the published app bundle.' }
-    & codesign --verify --deep --strict --verbose=2 $installedBundle
-    if ($LASTEXITCODE -ne 0) { throw 'The relocated app bundle signature is invalid.' }
-    $consumerOutput = Invoke-SmokeProcess (Join-Path $installedBundle 'Contents/MacOS/Consumer') @()
-    if ($consumerOutput -notmatch 'OfficeCLI packaging consumer') { throw 'The bundled consumer did not start correctly.' }
-    Test-Output (Join-Path $installedBundle 'Contents/MonoBundle') $true (Join-Path $applePublish 'smoke-reference')
+    foreach ($bundle in @($bundleDirectory, $installedBundle)) {
+        & codesign --verify --deep --strict --verbose=2 $bundle
+        if ($LASTEXITCODE -ne 0) { throw "The app bundle signature is invalid: $bundle" }
+        $consumerOutput = Invoke-SmokeProcess (Join-Path $bundle 'Contents/MacOS/Consumer') @()
+        if ($consumerOutput -notmatch 'OfficeCLI packaging consumer') { throw "The bundled consumer did not start correctly: $bundle" }
+        Test-Output (Join-Path $bundle 'Contents/MonoBundle') $true (Join-Path $applePublish 'smoke-reference')
+    }
 }
 
 Write-Host "Smoke passed for OfficeCLI $Version / $RuntimeIdentifier"

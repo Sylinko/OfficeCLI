@@ -87,17 +87,30 @@ publish. It creates Word, Excel and PowerPoint documents and edits/reads a Word
 document through upstream's resident child process.
 
 The `osx-arm64` CI job pins workload set `11.0.100.1` with Xcode `27.2` and publishes a
-trimmed, self-contained `net11.0-macos` consumer as an Apple `.app`. The fixture
+non-trimmed, self-contained `net11.0-macos` consumer as an Apple `.app`, matching
+Everywhere's `LinkMode=None` policy. The fixture
 uses hardened runtime and the same JIT entitlements and signing order as Everywhere:
 native libraries, the OfficeCLI apphost, then the main app. CI uses ad-hoc signing;
 Developer ID signing, notarization and installer packaging remain release responsibilities.
 
-The smoke copies the signed app to a fresh directory, verifies its signature, starts
-its main executable, and runs all document/resident tests from `Contents/MonoBundle`.
-It also checks that OfficeCLI uses the final trimmed dependency manifest and the
+The smoke copies the signed app to a fresh directory, then verifies signatures,
+starts the main executable, and runs all document/resident tests from both the
+original and relocated `Contents/MonoBundle` directories.
+It also checks that OfficeCLI uses the final dependency manifest and the
 consumer's runtime configuration, with one shared copy of each tested dependency.
 This exercises Apple's runtime configuration conversion and app layout, which a
 regular `net11.0` publish with an `osx` RID does not cover.
+
+The Apple fixture owns a normal AppKit initialization entry point. A console-only
+entry point with full trimming removed `Microsoft.macOS.dll` and made the native
+runtime bridge abort before `Main`. The unchanged package passed the full-trimming
+diagnostic after restoring an AppKit entry point; the supported Apple smoke uses
+`LinkMode=None` to match Everywhere.
+
+When changing `LinkMode` during local investigation, use fresh `tests/MacConsumer/bin`
+and `obj` outputs. Reusing a Full-mode bundle for None retained 48 trimmed framework
+assemblies alongside the full platform assembly and caused a different startup
+failure. Ordinary repeated builds with the same policy remain incremental.
 
 To run it locally with Xcode 27.2, first install the matching workload:
 
