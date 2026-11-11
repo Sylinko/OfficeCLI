@@ -104,7 +104,7 @@ function Test-Output([string] $Directory, [bool] $IsSelfContained, [string] $Ref
 $packageCache = Join-Path $work "packages/$([guid]::NewGuid().ToString('N'))"
 $common = @($project, '-c', 'Release', "-p:OfficeCliPackageVersion=$Version", "-p:RestoreConfigFile=$config", "-p:RestorePackagesPath=$packageCache", '-p:NuGetAudit=false', '--nologo')
 Invoke-Dotnet 'build' (@('build') + $common)
-$buildDir = Join-Path $root 'tests/Consumer/bin/Release/net10.0'
+$buildDir = Join-Path $root 'tests/Consumer/bin/Release/net11.0'
 Test-Output $buildDir $false
 
 $publish = Join-Path $work 'publish'

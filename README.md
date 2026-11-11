@@ -7,7 +7,7 @@ It is a regular `PackageReference`, not a `dotnet tool` package.
 
 ## Package and runtime contract
 
-The package contains `lib/net10.0/officecli.dll`, embedded upstream resources,
+The package contains `lib/net11.0/officecli.dll`, embedded upstream resources,
 debug symbols in a separate `.snupkg`, and small SDK-generated apphosts for
 `win-x64`, `linux-x64`, `linux-arm64`, `osx-x64` and `osx-arm64`. It declares the
 upstream project's PackageReferences instead of bundling third-party DLLs or a
@@ -20,7 +20,7 @@ the source submodule does not need packaging changes or a custom gitignore.
 `buildTransitive/OfficeCLI.targets` selects the apphost from `RuntimeIdentifier`
 (or the SDK host RID for RID-less builds), copies it into executable consumers,
 and preserves Unix executable permissions. Class libraries do not get launchers.
-The consumer must target .NET 10 or newer and generate its dependency and runtime
+The consumer must target .NET 11 or newer and generate its dependency and runtime
 configuration files. Single-file and NativeAOT consumers are rejected.
 
 OfficeCLI and the consumer **share one output directory and dependency graph**.
@@ -70,7 +70,7 @@ The package itself does not provide Developer ID signing or notarization.
 
 ## Build and verify locally
 
-Install .NET SDK 10.0.401 (or the version pinned in `global.json`) and PowerShell 7.
+Install .NET SDK 11.0.100 (or the version pinned in `global.json`) and PowerShell 7.
 Initialize the source checkout with `git submodule update --init`.
 
 ```powershell
@@ -86,8 +86,8 @@ then runs RID-less framework-dependent build output and a trimmed self-contained
 publish. It creates Word, Excel and PowerPoint documents and edits/reads a Word
 document through upstream's resident child process.
 
-The `osx-arm64` CI job pins workload set `10.0.401` with Xcode `26.6` and publishes a
-trimmed, self-contained `net10.0-macos` consumer as an Apple `.app`. The fixture
+The `osx-arm64` CI job pins workload set `11.0.100.1` with Xcode `27.2` and publishes a
+trimmed, self-contained `net11.0-macos` consumer as an Apple `.app`. The fixture
 uses hardened runtime and the same JIT entitlements and signing order as Everywhere:
 native libraries, the OfficeCLI apphost, then the main app. CI uses ad-hoc signing;
 Developer ID signing, notarization and installer packaging remain release responsibilities.
@@ -97,12 +97,12 @@ its main executable, and runs all document/resident tests from `Contents/MonoBun
 It also checks that OfficeCLI uses the final trimmed dependency manifest and the
 consumer's runtime configuration, with one shared copy of each tested dependency.
 This exercises Apple's runtime configuration conversion and app layout, which a
-regular `net10.0` publish with an `osx` RID does not cover.
+regular `net11.0` publish with an `osx` RID does not cover.
 
-To run it locally with Xcode 26.6, first install the matching workload:
+To run it locally with Xcode 27.2, first install the matching workload:
 
 ```sh
-dotnet workload install macos --version 10.0.401
+dotnet workload install macos --version 11.0.100.1
 ```
 
 Then add `-AppleBundle` to the smoke command. Pinning the .NET SDK alone does not

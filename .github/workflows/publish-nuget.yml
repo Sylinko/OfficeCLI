@@ -68,7 +68,7 @@ jobs:
           - rid: osx-x64
             runner: macos-15-intel
           - rid: osx-arm64
-            runner: macos-26
+            runner: xcode-27
     runs-on: ${{ matrix.runner }}
     steps:
       # Consumers intentionally do not check out the upstream submodule.
@@ -84,10 +84,10 @@ jobs:
         if: matrix.rid == 'osx-arm64'
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '26.6'
+          xcode-version: '27.2'
       - name: Install Apple workload for bundle smoke
         if: matrix.rid == 'osx-arm64'
-        run: dotnet workload install macos --version 10.0.401
+        run: dotnet workload install macos --version 11.0.100.1
       - name: Test package consumption and shared runtime
         shell: pwsh
         env:

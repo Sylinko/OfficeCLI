@@ -24,7 +24,7 @@ if ($upstream.Project.PropertyGroup.TargetFramework -ne 'net10.0' -or $upstream.
 }
 
 # Build the large managed project once. Platform apphosts contain no upstream code.
-$common = @('-c', 'Release', '-p:SelfContained=false', '-p:PublishSingleFile=false', '-p:PublishTrimmed=false', '-p:UseAppHost=false', '-p:GenerateRuntimeConfigurationFiles=false', "-p:BaseOutputPath=$artifacts/upstream-bin/", "-p:BaseIntermediateOutputPath=$artifacts/upstream-obj/")
+$common = @('-c', 'Release', '-p:TargetFramework=net11.0', '-p:TargetFrameworks=net11.0', '-p:Features=runtime-async=on', '-p:SelfContained=false', '-p:PublishSingleFile=false', '-p:PublishTrimmed=false', '-p:UseAppHost=false', '-p:GenerateRuntimeConfigurationFiles=false', "-p:BaseOutputPath=$artifacts/upstream-bin/", "-p:BaseIntermediateOutputPath=$artifacts/upstream-obj/")
 Invoke-Dotnet 'managed-build' (@('build', $project, '--nologo') + $common)
 foreach ($rid in $RuntimeIdentifiers) {
     # Keep the SDK's RID-separated intermediate directories: sharing them can reuse
@@ -34,7 +34,7 @@ foreach ($rid in $RuntimeIdentifiers) {
     $hostDir = Join-Path $artifacts "hosts/$rid"
     $hostName = if ($rid.StartsWith('win-')) { 'officecli.exe' } else { 'officecli' }
     New-Item -ItemType Directory -Force $hostDir | Out-Null
-    Copy-Item -LiteralPath (Join-Path $root "pack/AppHost/bin/Release/net10.0/$rid/$hostName") -Destination (Join-Path $hostDir $hostName)
+    Copy-Item -LiteralPath (Join-Path $root "pack/AppHost/bin/Release/net11.0/$rid/$hostName") -Destination (Join-Path $hostDir $hostName)
 }
 
 # Pack the upstream project's own PackageReferences; never duplicate their versions here.
