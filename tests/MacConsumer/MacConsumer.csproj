@@ -12,7 +12,8 @@
     <ApplicationManifest>Info.plist</ApplicationManifest>
     <CodesignEntitlements>Entitlements.plist</CodesignEntitlements>
     <GenerateDependencyFile>true</GenerateDependencyFile>
-    <PublishTrimmed>true</PublishTrimmed>
+    <!-- Apple SDK owns PublishTrimmed; exercise full trimming through its LinkMode contract. -->
+    <LinkMode>Full</LinkMode>
     <EnableCodeSigning>false</EnableCodeSigning>
     <EnablePackageSigning>false</EnablePackageSigning>
     <OfficeCliPackageVersion Condition="'$(OfficeCliPackageVersion)' == ''">999.0.0</OfficeCliPackageVersion>
